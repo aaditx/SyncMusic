@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SyncSound</title>
+    <style>
+        :root {
+            --bg: #111827;
+            --fg: #f3f4f6;
+            --accent: #8b5cf6;
+            --panel: #1f2937;
+        }
+
+        body {
+            font-family: system-ui, sans-serif;
+            background: var(--bg);
+            color: var(--fg);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #app {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .input {
+            background: #374151;
+            border: 1px solid #4b5563;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+        }
+
+        /* Lobby */
+        #lobby {
+            padding: 2rem;
+            max-width: 800px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .room-card {
+            background: var(--panel);
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid #374151;
+        }
+
+        .room-card:hover {
+            border-color: var(--accent);
+        }
+
+        /* Room Layout */
+        #room-view {
+            display: flex;
+            width: 100%;
+            height: 100%;
+        }
+
+        #main-panel {
+            flex: 1;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            overflow-y: auto;
+        }
+
+        #side-panel {
+            width: 300px;
+            background: var(--panel);
+            display: flex;
+            flex-direction: column;
+            border-left: 1px solid #374151;
+        }
+
+        /* Player */
+        #player-container {
+            background: black;
+            aspect-ratio: 16/9;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #controls {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            background: var(--panel);
+            padding: 1rem;
+            border-radius: 8px;
+        }
+
+        /* Playlist */
+        #playlist {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .track-item {
+            padding: 8px;
+            border-bottom: 1px solid #374151;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .track-item.active {
+            background: #374151;
+            color: var(--accent);
+        }
+
+        /* Chat */
+        #chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        #chat-input-area {
+            padding: 1rem;
+            border-top: 1px solid #374151;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .msg {
+            word-break: break-word;
+        }
+
+        .msg-sender {
+            font-weight: bold;
+            color: var(--accent);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="lobby">
+        <h1 style="text-align: center; color: var(--accent);">SyncSound</h1>
+        <div style="display: flex; gap: 1rem; margin-bottom: 2rem;">
+            <input type="text" id="new-room-name" class="input" placeholder="New Room Name" style="flex: 1;">
+            <button onclick="createRoom()" class="btn">Create Room</button>
+        </div>
+        <div id="room-list">Loading rooms...</div>
+    </div>
+
+    <div id="room-view" class="hidden">
+        <div id="main-panel">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2 id="room-title" style="margin: 0;">Room</h2>
+                <button onclick="leaveRoom()" class="btn" style="background: #ef4444;">Leave</button>
+            </div>
+
+            <div id="player-container">
+                <div id="player-placeholder">No Track Selected</div>
+                <video id="html5-player" class="hidden" style="width: 100%; height: 100%;" controls></video>
+                <iframe id="yt-player" class="hidden" width="100%" height="100%" frameborder="0"
+                    allow="autoplay; encrypted-media" allowfullscreen></iframe>
+            </div>
+
+            <div id="controls">
+                <button onclick="sendPlay()" class="btn">Play</button>
+                <button onclick="sendPause()" class="btn">Pause</button>
+                <input type="range" id="seek-bar" min="0" max="100" value="0" style="flex: 1;"
+                    onchange="sendSeek(this.value)">
+                <span id="time-display">00:00</span>
+            </div>
+
+            <div style="background: var(--panel); padding: 1rem; border-radius: 8px; flex: 1;">
+                <h3>Playlist</h3>
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <input type="text" id="track-url" class="input" placeholder="Paste URL (MP3/MP4/YouTube)"
+                        style="flex: 1;">
+                    <button onclick="addTrack()" class="btn">Add</button>
+                </div>
+                <div id="playlist"></div>
+            </div>
+        </div>
+
+        <div id="side-panel">
+            <div style="padding: 1rem; border-bottom: 1px solid #374151; font-weight: bold;">Chat</div>
+            <div id="chat-messages"></div>
+            <form id="chat-input-area" onsubmit="sendChat(event)">
+                <input type="text" id="chat-input" class="input" placeholder="Type a message..." style="flex: 1;">
+                <button type="submit" class="btn">Send</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin + '/api';
+        const WS_BASE = window.location.origin.replace(/^http/, 'ws') + '/ws';
+
+        let currentRoom = null;
+        let ws = null;
+        let clientId = 'user_' + Math.floor(Math.random() * 10000);
+        let playerState = { playing: false, position: 0, lastUpdate: 0 };
+        let currentTrack = null;
+
+        // --- Lobby Logic ---
+        async function loadRooms() {
+            const res = await fetch(`${API_BASE}/rooms`);
+            const rooms = await res.json();
+            const list = document.getElementById('room-list');
+            list.innerHTML = rooms.map(r => `
+                <div class="room-card" onclick="joinRoom('${r.id}')">
+                    <h3>${r.name}</h3>
+                    <small>${r.connected_clients} listeners</small>
+                </div>
+            `).join('');
+        }
+
+        async function createRoom() {
+            const name = document.getElementById('new-room-name').value;
+            if (!name) return;
+            const res = await fetch(`${API_BASE}/rooms?name=${encodeURIComponent(name)}`, { method: 'POST' });
+            const room = await res.json();
+            joinRoom(room.id);
+        }
+
+        // --- Room Logic ---
+        async function joinRoom(roomId) {
+            const res = await fetch(`${API_BASE}/rooms/${roomId}`);
+            if (!res.ok) return alert('Room not found');
+            currentRoom = await res.json();
+
+            document.getElementById('lobby').classList.add('hidden');
+            document.getElementById('room-view').classList.remove('hidden');
+            document.getElementById('room-title').innerText = currentRoom.name;
+
+            connectWs(roomId);
+            renderPlaylist();
+        }
+
+        function leaveRoom() {
+            if (ws) ws.close();
+            document.getElementById('room-view').classList.add('hidden');
+            document.getElementById('lobby').classList.remove('hidden');
+            currentRoom = null;
+            loadRooms();
+        }
+
+        function connectWs(roomId) {
+            ws = new WebSocket(`${WS_BASE}/${roomId}/${clientId}`);
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleEvent(data);
+            };
+        }
+
+        function handleEvent(event) {
+            if (event.type === 'chat') {
+                const div = document.createElement('div');
+                div.className = 'msg';
+                div.innerHTML = `<span class="msg-sender">${event.payload.sender}:</span> ${event.payload.content}`;
+                document.getElementById('chat-messages').appendChild(div);
+                document.getElementById('chat-messages').scrollTop = document.getElementById('chat-messages').scrollHeight;
+            } else if (event.type === 'playlist_update') {
+                currentRoom.playlist = event.payload.playlist;
+                renderPlaylist();
+            } else if (event.type === 'state_update') {
+                syncState(event.payload);
+            }
+        }
+
+        // --- Player & Sync Logic ---
+        const html5Player = document.getElementById('html5-player');
+        const ytPlayer = document.getElementById('yt-player');
+        const placeholder = document.getElementById('player-placeholder');
+
+        function renderPlaylist() {
+            const list = document.getElementById('playlist');
+            list.innerHTML = currentRoom.playlist.map((t, i) => `
+                <div class="track-item ${i === currentRoom.state.current_track_index ? 'active' : ''}" onclick="changeTrack(${i})">
+                    <span>${t.title || t.url}</span>
+                    <small>${t.duration || ''}</small>
+                </div>
+            `).join('');
+        }
+
+        function syncState(state) {
+            currentRoom.state = state;
+            const track = currentRoom.playlist[state.current_track_index];
+
+            // Update Track Source if changed
+            if (track && (!currentTrack || currentTrack.url !== track.url)) {
+                currentTrack = track;
+                loadTrack(track);
+            }
+
+            // Sync Play/Pause
+            if (state.is_playing) {
+                if (html5Player.paused && !html5Player.classList.contains('hidden')) html5Player.play();
+                // YouTube sync would go here (using Player API)
+            } else {
+                if (!html5Player.paused && !html5Player.classList.contains('hidden')) html5Player.pause();
+            }
+
+            // Sync Position (Simple drift check)
+            // In a real app, we'd calculate drift based on 'last_updated' and server time
+            // For now, we just snap if too far off
+            if (!html5Player.classList.contains('hidden')) {
+                const diff = Math.abs(html5Player.currentTime - state.position);
+                if (diff > 2) {
+                    html5Player.currentTime = state.position;
+                }
+            }
+
+            renderPlaylist();
+        }
+
+        function loadTrack(track) {
+            const isYt = track.url.includes('youtube.com') || track.url.includes('youtu.be');
+
+            if (isYt) {
+                // Simple iframe embed for now (Syncing iframe requires YouTube IFrame API, which is more complex)
+                // For this "simple client", we might just show the video.
+                // To actually sync, we need the API. 
+                // For now, let's just embed it.
+                let videoId = track.url.split('v=')[1];
+                const ampersandPosition = videoId ? videoId.indexOf('&') : -1;
+                if (ampersandPosition != -1) {
+                    videoId = videoId.substring(0, ampersandPosition);
+                }
+
+                html5Player.classList.add('hidden');
+                ytPlayer.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+                ytPlayer.src = `https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1`;
+            } else {
+                ytPlayer.classList.add('hidden');
+                html5Player.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+                html5Player.src = track.url;
+            }
+        }
+
+        // --- Actions ---
+        function sendChat(e) {
+            e.preventDefault();
+            const input = document.getElementById('chat-input');
+            if (!input.value) return;
+            ws.send(JSON.stringify({ type: 'chat', payload: { content: input.value } }));
+            input.value = '';
+        }
+
+        function addTrack() {
+            const url = document.getElementById('track-url').value;
+            if (!url) return;
+            ws.send(JSON.stringify({ type: 'add_track', payload: { url, added_by: clientId, title: url } }));
+            document.getElementById('track-url').value = '';
+        }
+
+        function changeTrack(index) {
+            ws.send(JSON.stringify({ type: 'change_track', payload: { index } }));
+        }
+
+        function sendPlay() {
+            ws.send(JSON.stringify({ type: 'play' }));
+        }
+
+        function sendPause() {
+            ws.send(JSON.stringify({ type: 'pause' }));
+        }
+
+        function sendSeek(val) {
+            // This is a stub. Real seek needs duration to calculate percentage.
+            // For now, let's assume we seek to 'val' seconds if we knew duration.
+            // Or just send raw seconds if we had it.
+            ws.send(JSON.stringify({ type: 'seek', payload: { position: parseFloat(val) } }));
+        }
+
+        // Init
+        loadRooms();
+
+        // Periodic updates for HTML5 player
+        setInterval(() => {
+            if (!html5Player.paused && !html5Player.classList.contains('hidden')) {
+                document.getElementById('time-display').innerText = Math.floor(html5Player.currentTime) + 's';
+                document.getElementById('seek-bar').value = html5Player.currentTime; // Update UI
+                // Ideally send progress to server occasionally?
+            }
+        }, 1000);
+
+    </script>
+</body>
+
+</html>
